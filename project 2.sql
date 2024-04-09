@@ -34,7 +34,7 @@ FROM Youngest
 WHERE rn = 1
 UNION ALL
 SELECT first_name, last_name, gender, age, tag
----4 Top 5 sản phẩm mỗi tháng.
+--4. Top 5 sản phẩm mỗi tháng.
 WITH ProfitableProducts AS (
 SELECT 
 DATE_TRUNC(a.created_at, MONTH) AS month_year, a.product_id, b.product_name,
@@ -54,7 +54,7 @@ FROM Oldest
 WHERE rn = 1)
 SELECT *, COUNT(*) OVER (PARTITION BY gender, tag) as count
 FROM unionn
---Doanh thu tính đến thời điểm hiện tại trên mỗi danh mục
+--5. Doanh thu tính đến thời điểm hiện tại trên mỗi danh mục
 SELECT 
 DATE_TRUNC(c.created_at, DAY) AS dates,
 b.category AS product_categories,
