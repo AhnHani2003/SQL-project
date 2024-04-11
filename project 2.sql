@@ -74,125 +74,63 @@ ORDER BY dates, product_categories;
 
 
 -----
--- Tính tổng doanh thu mỗi tháng (TPV)
-SELECT 
-    EXTRACT(YEAR FROM o.created_at) AS Year, 
+WITH TPV AS(
+  SELECT 
+    EXTRACT(YEAR FROM o.created_at) AS Year,
     EXTRACT(MONTH FROM o.created_at) AS Month,
-    SUM(oi.sale_price * o.num_of_item) AS TPV
+    ROUND(SUM(oi.sale_price * num_of_item),2) AS tpv
 FROM 
     bigquery-public-data.thelook_ecommerce.orders o
 JOIN 
-    bigquery-public-data.thelook_ecommerce.order_items oi ON o.order_id = oi.id
+    bigquery-public-data.thelook_ecommerce.order_items oi ON o.order_id = oi.order_id
 GROUP BY 
-    EXTRACT(YEAR FROM o.created_at) , 
-    EXTRACT(MONTH FROM o.created_at) ;
-
--- Tính tổng số đơn hàng mỗi tháng (TPO)
-SELECT 
-    EXTRACT(YEAR FROM created_at) AS Year, 
-    EXTRACT(MONTH FROM created_at) AS Month, 
-    COUNT(order_id) AS TPO
-FROM 
-    bigquery-public-data.thelook_ecommerce.orders
-GROUP BY 
-    EXTRACT(YEAR FROM created_at) , 
-    EXTRACT(MONTH FROM created_at) ;
-
--- Tính tổng chi phí mỗi tháng (Total_cost)
-SELECT 
-    EXTRACT(YEAR FROM o.created_at) AS Year, 
-    EXTRACT(MONTH FROM o.created_at) AS Month, 
-    SUM(cost) AS Total_cost
-FROM 
-    bigquery-public-data.thelook_ecommerce.products a
-JOIN
-    bigquery-public-data.thelook_ecommerce.order_items oi ON oi.product_id = a.id
-JOIN
-     bigquery-public-data.thelook_ecommerce.orders o ON oi.id = o.order_id
-GROUP BY 
-    EXTRACT(YEAR FROM o.created_at), 
-    EXTRACT(MONTH FROM o.created_at) ;
-
--- Tính tổng lợi nhuận mỗi tháng (Total_profit)
-SELECT 
-    TPV.Year,
-    TPV.Month,
-    TPV - Total_cost AS Total_profit
-FROM 
-    (SELECT 
-         EXTRACT(YEAR FROM o.created_at) AS Year, 
-         EXTRACT(MONTH FROM o.created_at) AS Month,
-         SUM(oi.sale_price * o.num_of_item) AS TPV
-     FROM 
-         bigquery-public-data.thelook_ecommerce.orders o
-     JOIN 
-         bigquery-public-data.thelook_ecommerce.order_items oi ON o.order_id = oi.id
-     GROUP BY 
-         EXTRACT(YEAR FROM o.created_at) , 
-    EXTRACT(MONTH FROM o.created_at) ) TPV
-JOIN 
-    (SELECT 
-         EXTRACT(YEAR FROM o.created_at) AS Year, 
-    EXTRACT(MONTH FROM o.created_at) AS Month, 
-         SUM(cost) AS Total_cost
-     FROM 
-         bigquery-public-data.thelook_ecommerce.products a
-      JOIN
-    bigquery-public-data.thelook_ecommerce.order_items oi ON oi.product_id = a.id
-      JOIN
-     bigquery-public-data.thelook_ecommerce.orders o ON oi.id = o.order_id    
-     GROUP BY 
-         EXTRACT(YEAR FROM o.created_at) , 
-    EXTRACT(MONTH FROM o.created_at) ) Total_cost
-ON 
-    TPV.Year = Total_cost.Year AND TPV.Month = Total_cost.Month;
-
--- Tính tỉ lệ lợi nhuận/chi phí mỗi tháng (Profit_to_cost_ratio)
-SELECT 
-    TP.Year,
-    TP.Month,
-    TP.Total_profit / TC.Total_cost AS Profit_to_cost_ratio
-FROM 
-    (SELECT 
-         TPV.Year,
-         TPV.Month,
-         TPV - Total_cost AS Total_profit
-     FROM 
-         (SELECT 
-              EXTRACT(YEAR FROM o.created_at) AS Year, 
+    EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
+ORDER BY 
+    Year, Month
+),
+TPO AS(SELECT 
+    EXTRACT(YEAR FROM o.created_at) AS Year,
     EXTRACT(MONTH FROM o.created_at) AS Month,
-              SUM(oi.sale_price * oi.quantity) AS TPV
-          FROM 
-              bigquery-public-data.thelook_ecommerce.orders o
-          JOIN 
-              bigquery-public-data.thelook_ecommerce.order_items oi ON o.order_id = oi.id
-          GROUP BY 
-              EXTRACT(YEAR FROM o.created_at), 
-    EXTRACT(MONTH FROM o.created_at)) TPV
-     JOIN 
-         (SELECT 
-              EXTRACT(YEAR FROM o.created_at) AS Year, 
-    EXTRACT(MONTH FROM o.created_at) AS Month, 
-              SUM(cost) AS Total_cost
-          FROM 
-              bigquery-public-data.thelook_ecommerce.products
-          GROUP BY 
-              EXTRACT(YEAR FROM o.created_at), 
-    EXTRACT(MONTH FROM o.created_at)) Total_cost
-     ON 
-         TPV.Year = Total_cost.Year AND TPV.Month = Total_cost.Month) TP
+    COUNT (o.order_id) AS tpo
+FROM
+    bigquery-public-data.thelook_ecommerce.orders o
 JOIN 
-    (SELECT 
-         EXTRACT(YEAR FROM o.created_at) AS Year, 
-    EXTRACT(MONTH FROM o.created_at) AS Month, 
-         SUM(cost) AS Total_cost
-     FROM 
-         bigquery-public-data.thelook_ecommerce.products
-     GROUP BY 
-         EXTRACT(YEAR FROM o.created_at) , 
-    EXTRACT(MONTH FROM o.created_at) ) TC
-ON 
-    TP.Year = TC.Year AND TP.Month = TC.Month;
+    bigquery-public-data.thelook_ecommerce.order_items oi ON o.order_id = oi.order_id
+GROUP BY 
+    EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
+ORDER BY 
+    Year, Month),
+OrderGrowth AS (
+    SELECT 
+        Year,
+        Month,
+        (CAST(tpo AS FLOAT64) - CAST(LAG(tpo) OVER (ORDER BY Year, Month) AS FLOAT64)) / CAST(LAG(tpo) OVER (ORDER BY Year, Month) AS FLOAT64) AS Order_growth
+    FROM 
+        TPO
+)
+SELECT 
+    Year,
+    Month,
+    COALESCE(Order_growth, 0) AS Order_growth_percentage
+FROM 
+    OrderGrowth
+ORDER BY 
+    Year, Month;
+
+SELECT 
+  EXTRACT(YEAR FROM o.created_at) AS Year,
+  EXTRACT(MONTH FROM o.created_at) AS Month,
+  a.category,
+  SUM(oi.sale_price * o.num_of_item) AS TPV
+FROM 
+  bigquery-public-data.thelook_ecommerce.products a
+JOIN
+  bigquery-public-data.thelook_ecommerce.order_items oi ON oi.product_id = a.id
+JOIN
+  bigquery-public-data.thelook_ecommerce.orders o ON oi.id = o.order_id
+GROUP BY 
+  EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
+
 
 
 
