@@ -74,6 +74,7 @@ ORDER BY dates, product_categories;
 
 
 -----
+--TPV
 WITH TPV AS(
   SELECT 
     EXTRACT(YEAR FROM o.created_at) AS Year,
@@ -88,6 +89,7 @@ GROUP BY
 ORDER BY 
     Year, Month
 ),
+--TPO
 TPO AS(SELECT 
     EXTRACT(YEAR FROM o.created_at) AS Year,
     EXTRACT(MONTH FROM o.created_at) AS Month,
@@ -100,28 +102,11 @@ GROUP BY
     EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
 ORDER BY 
     Year, Month),
-OrderGrowth AS (
-    SELECT 
-        Year,
-        Month,
-        (CAST(tpo AS FLOAT64) - CAST(LAG(tpo) OVER (ORDER BY Year, Month) AS FLOAT64)) / CAST(LAG(tpo) OVER (ORDER BY Year, Month) AS FLOAT64) AS Order_growth
-    FROM 
-        TPO
-)
-SELECT 
-    Year,
-    Month,
-    COALESCE(Order_growth, 0) AS Order_growth_percentage
-FROM 
-    OrderGrowth
-ORDER BY 
-    Year, Month;
-
-SELECT 
-  EXTRACT(YEAR FROM o.created_at) AS Year,
-  EXTRACT(MONTH FROM o.created_at) AS Month,
-  a.category,
-  SUM(oi.sale_price * o.num_of_item) AS TPV
+--Total_cost
+Total_cost AS (SELECT 
+    EXTRACT(YEAR FROM o.created_at) AS Year,
+    EXTRACT(MONTH FROM o.created_at) AS Month,
+    ROUND(SUM(a.cost),2) AS Total_cost
 FROM 
   bigquery-public-data.thelook_ecommerce.products a
 JOIN
@@ -129,8 +114,64 @@ JOIN
 JOIN
   bigquery-public-data.thelook_ecommerce.orders o ON oi.id = o.order_id
 GROUP BY 
-  EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
-
+    EXTRACT(YEAR FROM o.created_at), EXTRACT(MONTH FROM o.created_at)
+ORDER BY 
+    Year, Month),
+-- Tính tổng lợi nhuận mỗi tháng
+TotalProfit AS (
+    SELECT 
+        a.Year,
+        a.Month,
+        ROUND((b.tpv - a.Total_cost),2) AS Total_profit
+    FROM 
+        Total_cost a
+    JOIN 
+        TPV b ON a.Year = b.Year AND a.Month = b.Month
+),
+--Profit_to_cost_ratio
+Profit_to_cost_ratio AS(SELECT 
+    a.Year,
+    a.Month,
+    CASE 
+        WHEN b.Total_cost = 0 THEN 0
+        ELSE ROUND((a.Total_profit / b.Total_cost),2)
+    END AS Profit_to_costratio
+FROM 
+    TotalProfit a
+JOIN 
+    Total_cost b ON a.Year = b.Year AND a.Month = b.Month
+ORDER BY 
+    Year, Month)
+--main
+SELECT 
+    MR.Year AS Year,
+    MR.Month AS Month,
+    MR.tpv AS TPV,
+    MO.tpo AS TPO,
+    CASE 
+        WHEN LAG(MR.tpv) OVER (ORDER BY MR.Year, MR.Month) IS NULL THEN 0
+        ELSE ROUND((MR.tpv - LAG(MR.tpv) OVER (ORDER BY MR.Year, MR.Month)) / LAG(MR.tpv) OVER (ORDER BY MR.Year, MR.Month),2)
+    END AS Revenue_growth,
+    CASE 
+        WHEN LAG(MO.tpo) OVER (ORDER BY MO.Year, MO.Month) IS NULL THEN 0
+        ELSE ROUND((MO.tpo - LAG(MO.tpo) OVER (ORDER BY MO.Year, MO.Month)) / LAG(MO.tpo) OVER (ORDER BY MO.Year, MO.Month),2)
+    END AS Order_growth,
+    TC.Total_cost AS Total_cost,
+    TP.Total_profit AS Total_profit,
+    CASE 
+        WHEN TC.Total_cost = 0 THEN 0
+        ELSE ROUND((TP.Total_profit / TC.Total_cost),2)
+    END AS Profit_to_cost_ratio
+FROM 
+    TPV MR
+JOIN 
+    TPO MO ON MR.Year = MO.Year AND MR.Month = MO.Month
+JOIN 
+    Total_cost TC ON MR.Year = TC.Year AND MR.Month = TC.Month
+JOIN 
+    TotalProfit TP ON MR.Year = TP.Year AND MR.Month = TP.Month 
+ORDER BY 
+    MR.Year, MR.Month;
 
 
 
