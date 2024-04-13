@@ -48,7 +48,7 @@ ALTER COLUMN msrp TYPE numeric USING (trim(msrp)::numeric);
 -- Check for NULL or empty strings in the ORDERNUMBER column
 SELECT *
 FROM SALES_DATASET_RFM_PRJ
-WHERE ORDERNUMBER IS NULL OR ORDERNUMB   ER = '';
+WHERE ORDERNUMBER IS NULL OR ORDERNUMBER = '';
 
 -- Check for NULL or '' in the QUANTITYORDERED column
 SELECT *
