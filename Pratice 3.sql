@@ -74,3 +74,38 @@ WHERE Rank = 1
 
 
 --5) Ai là khách hàng tốt nhất, phân tích dựa vào RFM 
+WITH customer_rfm AS(
+SELECT a.customer_id,
+CURRENT_DATE - MAX(b.order_date) AS R,
+COUNT(DISTINCT b.order_id) AS F,
+SUM(b.sales) as M
+FROM customer a
+JOIN sales b ON a.customer_id = b.customer_id
+GROUP BY a.customer_id),
+rfm_score AS(
+SELECT customer_id,
+ntile(5) OVER(ORDER BY R DESC) AS R_score,
+ntile(5) OVER(ORDER BY F) AS F_score,
+ntile(5) OVER(ORDER BY M) AS M_score
+FROM customer_rfm),
+rfm_final AS (
+SELECT customer_id,
+CAST(R_score AS VARCHAR) || CAST(F_score AS VARCHAR) || CAST(M_score AS VARCHAR) AS rfm_score
+FROM rfm_score),
+
+
+/*SELECT segment, COUNT(*)
+FROM(SELECT customer_id, b.segment FROM
+rfm_final a
+JOIN segment_score b ON a.rfm_score = b.scores) AS a
+GROUP BY segment
+ORDER BY COUNT (*)*/
+
+customer_rank AS(
+SELECT customer_id, CAST(rfm_score AS numeric) AS numeric_score,
+DENSE_RANK() OVER(ORDER BY  CAST(rfm_score AS numeric)DESC) AS RANK
+FROM rfm_final
+ORDER BY numeric_score DESC)
+
+SELECT customer_id, numeric_score FROM customer_rank
+WHERE RANK = 1
