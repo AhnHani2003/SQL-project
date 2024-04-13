@@ -5,7 +5,7 @@ SELECT
     dealsize,
     SUM(sales) AS revenue
 FROM
-    sales_dataset_rfm_prj
+    sales_dataset_rfm_prj_clean
 GROUP BY
     productline,
     EXTRACT('year' FROM orderdate),
@@ -18,7 +18,7 @@ WITH MonthlyRevenue AS (SELECT
 	COUNT(*) AS ORDER_NUMBER,
     ROW_NUMBER() OVER(PARTITION BY EXTRACT('year' FROM orderdate) ORDER BY SUM(sales) DESC) AS Rank
 FROM
-    sales_dataset_rfm_prj
+    sales_dataset_rfm_prj_clean
 GROUP BY
     EXTRACT('year' FROM orderdate), EXTRACT('month' FROM orderdate))
 
@@ -40,7 +40,7 @@ WITH NOVEMBER_ORDER AS(SELECT
 	COUNT(*) AS ORDER_NUMBER,
     ROW_NUMBER() OVER(PARTITION BY EXTRACT('year' FROM orderdate), EXTRACT('month' FROM orderdate) ORDER BY COUNT(*) DESC) AS Rank
 FROM
-    sales_dataset_rfm_prj
+    sales_dataset_rfm_prj_clean
 GROUP BY
     productline,
     EXTRACT('year' FROM orderdate),  EXTRACT('month' FROM orderdate)
@@ -63,7 +63,7 @@ WITH UK_REVENUE AS (SELECT EXTRACT('year' FROM orderdate) AS YEAR_ID,
 	productline,    
     SUM(sales) AS revenue,
 	ROW_NUMBER() OVER(PARTITION BY EXTRACT('year' FROM orderdate) ORDER BY SUM(sales) DESC) AS Rank
-FROM sales_dataset_rfm_prj
+FROM sales_dataset_rfm_prj_clean
 WHERE country='UK'
 GROUP BY YEAR_ID, productline
 ORDER BY YEAR_ID)
